@@ -1,73 +1,62 @@
+# captain-nemo
+# 2024 Dec 19
+# Just a little widget to show off the latest XKCD :)
+
+import json
+import tkinter
+from tkinter import PhotoImage, Frame
 import requests as req
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
-import os, json, sys
 
-url = 'https://xkcd.com/'
-
-os.makedirs('xkcd',exist_ok=True)
+comic_details = []
 
 def get_comic_details():
+    """Get the json from xkcd.com"""
+    global comic_details
     res = req.get("https://xkcd.com/info.0.json")
-    return json.loads(res.text)
-
-def get_comic(url, title):
-    res = req.get(url).content
-
-    with open(title + ".png", 'wb') as handler:
+    details = json.loads(res.text)
+    # Put just the parts we need in a list
+    comic_details = [details.get("alt"),
+                        details.get("img"),
+                        details.get("safe_title")]
+    # Get the actual image and store it locally
+    res = req.get(comic_details[1]).content
+    with open("comic_o_the_day.png", 'wb') as handler:
         handler.write(res)
 
-class MainWindow(QMainWindow):
-    def __init__(self, x, y, alt, title):
-        super().__init__()
-        layout = QVBoxLayout()
+def refresh(image_label, alt_label):
+    """Refresh the displayed image and alt text"""
+    get_comic_details()
+    new_image = PhotoImage(file="comic_o_the_day.png")
+    image_label.configure(image=new_image)
+    image_label.image = new_image
 
-        self.x = x
-        self.y = y
-        self.alt = alt
-        self.title = title
+    alt_label.configure(text=comic_details[0])
 
-        comic = QLabel(self)
-        pixmap = QPixmap(self.title + ".png")
-        comic.setPixmap(pixmap)
-        comic.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        alt_label = QLabel(alt,self)
-        font = alt_label.font()
-        font.setPointSize(12)
-        alt_label.setFont(font)
-        alt_label.setWordWrap(True)
-        alt_label.setContentsMargins(10,15,10,10)
-        alt_label.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        
-        comic.adjustSize()
-        alt_label.adjustSize()
-        comic.setFixedSize(comic.size())
-        
-        layout.addWidget(comic)
-        layout.addWidget(alt_label)
-
-        central_widget = QWidget()
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
-
-        self.resize(self.minimumSizeHint())
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnBottomHint | Qt.WindowType.Tool)
-        self.setGeometry(self.x - (pixmap.width() + 50), self.y, pixmap.width() + 20, pixmap.height())
+def main():
+    """Our main function"""
+    # Get the json and comic image
+    get_comic_details()
+    # Create a tkinter window and set its properties
+    parent = tkinter.Tk()
+    parent.title("XKCD")
+    parent.configure(bg='lightblue')
+    # A frame to hold the comic with a little bit of padding
+    frame = Frame(parent)
+    frame.pack(pady=(20,10), padx=20)
+    # Load the image into the frame
+    image = PhotoImage(file="comic_o_the_day.png")
+    image_label = tkinter.Label(frame, image=image)
+    image_label.pack()
+    # Update idle tasks so that I can access winfo_width
+    parent.update_idletasks()
+    # Put the alt text in a label beneath the comic
+    alt_label = tkinter.Label(parent, text=comic_details[0], bg='lightblue', font=("Lucida Sans", 11), wraplength=parent.winfo_width())
+    alt_label.pack(pady=(0,10), padx=(10,10))
+    # Create the refresh button
+    button = tkinter.Button(parent, text="Refresh", command=lambda: refresh(image_label, alt_label))
+    button.pack(pady=(0,10))
+    # Start the tkinter mainloop
+    parent.mainloop()
 
 if __name__ == "__main__":
-    comic_details = get_comic_details()
-    alt = comic_details.get("alt")
-    title = comic_details.get("safe_title")
-    url = comic_details.get("img")
-    get_comic(url, title)
-
-    app = QApplication(sys.argv)
-    screen = app.primaryScreen()
-    x = screen.size().width()
-    y = 30
-    window = MainWindow(x,y,alt,title)
-    window.show()
-
-    sys.exit(app.exec())
+    main()
